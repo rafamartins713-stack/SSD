@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Vendedor - Criar Novo Leilão</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 20px; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #333; margin-top: 0; }
+        label { font-weight: bold; display: block; margin-top: 15px; }
+        input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .btn-submit { background: #4CAF50; color: white; border: none; padding: 12px; cursor: pointer; border-radius: 4px; font-weight: bold; width: 100%; margin-top: 20px; }
+        .btn-submit:hover { background: #45a049; }
+        .btn-back { background: #2196F3; color: white; text-decoration: none; display: block; text-align: center; padding: 10px; border-radius: 4px; margin-top: 10px; font-weight: bold; }
+        .btn-back:hover { background: #0b7dda; }
+        #mensagem { padding: 10px; margin-top: 15px; border-radius: 4px; display: none; font-weight: bold; }
+        .sucesso { background-color: #dff0d8; color: #3c763d; border: 1px solid #d6e9c6; }
+        .erro { background-color: #f2dede; color: #a94442; border: 1px solid #ebccd1; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>➕ Criar Novo Leilão (Blockchain)</h2>
+    
+    <form id="formCriar" onsubmit="submeterLeilao(event)">
+        <label for="item">Nome do Produto:</label>
+        <input type="text" id="item" placeholder="Ex: Computador_Rust_Pro" required>
+
+        <label for="minBid">Licitação Mínima (USD):</label>
+        <input type="number" id="minBid" min="1" placeholder="Ex: 150" required>
+
+        <button type="submit" class="btn-submit">🚀 Publicar no Mercado</button>
+    </form>
+
+    <div id="mensagem"></div>
+    
+    <a href="index.html" class="btn-back">⬅️ Voltar ao Dashboard</a>
+</div>
+
+<script>
+    async function submeterLeilao(event) {
+        event.preventDefault();
+        
+        const item = document.getElementById('item').value.trim();
+        const minBid = parseInt(document.getElementById('minBid').value);
+        const msgDiv = document.getElementById('mensagem');
+
+        // RESOLVIDO: Aponta para a rede central 9080 para estar visível no index
+        const REDE_CENTRAL = "http://localhost:9080";
+
+        try {
+            const resposta = await fetch(`${REDE_CENTRAL}/api/auctions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item: item, min_bid: minBid })
+            });
+
+            const resultado = await resposta.json();
+
+            if (resultado.status === 'success') {
+                msgDiv.innerText = `✅ Sucesso! Leilão criado com ID: ${resultado.auction_id}\n⚠️ Volta ao Dashboard e clica em MINERAR para ele aparecer!`;
+                msgDiv.className = "sucesso";
+                msgDiv.style.display = "block";
+                document.getElementById('formCriar').reset();
+            } else {
+                msgDiv.innerText = "❌ Erro ao criar o leilão na Blockchain.";
+                msgDiv.className = "erro";
+                msgDiv.style.display = "block";
+            }
+        } catch (erro) {
+            msgDiv.innerText = "❌ Erro de ligação. Certifica-te que o servidor está online!";
+            msgDiv.className = "erro";
+            msgDiv.style.display = "block";
+        }
+    }
+</script>
+</body>
+</html>

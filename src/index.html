@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard P2P Blockchain</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .node-selector-box { background: #e3f2fd; padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
+        .actions-bar { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #45a049; }
+        .card { border: 1px solid #ddd; padding: 15px; margin-top: 10px; border-radius: 5px; }
+        .price-tag { color: #e74c3c; font-weight: bold; }
+        .bid-section { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
+        
+        .vendedor-link { display: none; background: #d9534f; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; }
+        .vendedor-link:hover { background: #c9302c; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🛒 Painel de Leilões P2P</h1>
+
+    <div class="node-selector-box">
+        <span>🔌 Alterar Identidade / Perfil:</span>
+        <select id="node-select" onchange="alterarNoAtivo()">
+            <option value="9080">Nó Bootstrap (Monitorização)</option>
+            <option value="9081">Nó Vendedor (Acesso Restrito)</option>
+            <option value="9082">Nó Comprador A</option>
+            <option value="9083">Nó Comprador B</option>
+            <option value="9084">Nó Comprador C</option>
+        </select>
+        <span id="nodeStatus" style="color: green; margin-left: auto;">● Sincronizado</span>
+    </div>
+    
+    <div class="actions-bar">
+        <button onclick="minarBloco()">⛏️ Minerar Transações Pendentes</button>
+        <button onclick="carregarLeiloes()" style="background: #2196F3;">🔄 Atualizar Mercado</button>
+        <button onclick="testarBlockchain()" style="background: #9c27b0;">🛡️ Test Block</button>
+        
+        <a href="criar.html" id="vendedorCreateLink" class="vendedor-link" style="background: #4CAF50;">➕ Criar Leilão</a>
+    </div>
+
+    <h2>Mercado Ativo</h2>
+    <div id="mercado">
+        <p>A carregar leilões da Blockchain...</p>
+    </div>
+</div>
+
+<script>
+    const BOOTSTRAP_URL = "http://localhost:9080";
+
+    function verificarLinkVendedor() {
+        const select = document.getElementById('node-select');
+        const linkCreate = document.getElementById('vendedorCreateLink');
+        const isVendedor = select.options[select.selectedIndex].text.includes("Vendedor");
+        
+        if (isVendedor) {
+            linkCreate.style.display = "inline-block";
+        } else {
+            linkCreate.style.display = "none";
+        }
+    }
+
+    function alterarNoAtivo() {
+        verificarLinkVendedor(); 
+        carregarLeiloes();
+    }
+
+    async function carregarLeiloes() {
+        const statusSpan = document.getElementById('nodeStatus');
+        const mercadoDiv = document.getElementById('mercado');
+        const select = document.getElementById('node-select');
+        const isVendedor = select.options[select.selectedIndex].text.includes("Vendedor");
+
+        try {
+            const res = await fetch(`${BOOTSTRAP_URL}/api/auctions`);
+            const leiloes = await res.json();
+            
+            statusSpan.innerText = "● Sincronizado";
+            statusSpan.style.color = "green";
+            
+            if (leiloes.length === 0) {
+                mercadoDiv.innerHTML = "<p>Nenhum leilão ativo no momento.</p>";
+                return;
+            }
+
+            mercadoDiv.innerHTML = leiloes.map(l => `
+                <div class="card">
+                    <h3>📦 Produto: ${l.item}</h3>
+                    <p><strong>ID do Leilão:</strong> <code>${l.id}</code></p>
+                    <p><strong>🔥 Lance Atual:</strong> <span class="price-tag">${l.current_bid} USD</span></p>
+                    
+                    <div class="bid-section">
+                        ${!isVendedor ? `
+                            <input type="number" id="input-${l.id}" value="${l.current_bid + 1}" style="padding: 5px; width: 100px;">
+                            <button onclick="fazerBid('${l.id}')" style="background: #e67e22;">Licitar</button>
+                        ` : `
+                            <button onclick="terminarLeilao('${l.id}')" style="background: #c0392b;">Terminar Leilão</button>
+                        `}
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            statusSpan.innerText = "● OFFLINE";
+            statusSpan.style.color = "red";
+            mercadoDiv.innerHTML = "<p style='color:red;'>Erro ao carregar mercado.</p>";
+        }
+    }
+
+    async function fazerBid(auctionId) {
+        const amount = document.getElementById(`input-${auctionId}`).value;
+        const select = document.getElementById('node-select');
+        const senderType = select.options[select.selectedIndex].text;
+
+        try {
+            const res = await fetch(`${BOOTSTRAP_URL}/api/bids`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    auction_id: auctionId, 
+                    amount: parseInt(amount),
+                    sender_type: senderType 
+                })
+            });
+            
+            const data = await res.json();
+            if (data.status === "success") {
+                alert("Lance efetuado pelo perfil: " + senderType);
+                carregarLeiloes();
+            } else {
+                alert("Erro: " + (data.message || "Apenas compradores podem licitar!"));
+            }
+        } catch (e) {
+            alert("Erro de conexão ao servidor.");
+        }
+    }
+
+    async function minarBloco() {
+        try {
+            const res = await fetch(`${BOOTSTRAP_URL}/api/mine`, { method: 'POST' });
+            const data = await res.json();
+            alert("Bloco #" + data.block_index + " minerado com sucesso! A rede está atualizada.");
+            carregarLeiloes();
+        } catch (e) { alert("Erro ao minerar."); }
+    }
+
+    async function testarBlockchain() {
+        try {
+            const res = await fetch(`${BOOTSTRAP_URL}/api/test_block`);
+            const data = await res.json();
+            
+            if (data.healthy) {
+                alert(`✅ Blockchain Saudável!\n` + 
+                      `Tamanho da Cadeia: ${data.chain_length} blocos\n` + 
+                      `Hash do último bloco: ${data.last_block_hash.substring(0, 16)}...`);
+            } else {
+                alert("❌ Problema detetado na integridade da Blockchain!");
+            }
+        } catch (e) {
+            alert("Erro ao conectar ao nó para testar a blockchain.");
+        }
+    }    
+
+    async function terminarLeilao(auctionId) {
+        const select = document.getElementById('node-select');
+        const senderType = select.options[select.selectedIndex].text;
+
+        try {
+            const res = await fetch(`${BOOTSTRAP_URL}/api/close_auction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ auction_id: auctionId, sender_type: senderType })
+            });
+            const data = await res.json();
+            
+            if (data.status === "success") {
+                alert("Leilão terminado! Lembra-te de MINERAR o bloco para ele desaparecer.");
+                carregarLeiloes();
+            } else {
+                alert("Erro: " + data.message);
+            }
+        } catch (e) {
+            alert("Erro de conexão.");
+        }
+    }
+
+    window.onload = function() {
+        verificarLinkVendedor();
+        carregarLeiloes();
+    };
+</script>
+</body>
+</html>
